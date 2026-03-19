@@ -9,17 +9,18 @@ Brown Dust 2 全自动签到 + 兑换码一键兑换 for [OpenClaw](https://open
 
 ## Features
 
-### Gift Code Redemption (API-based, no browser needed)
+### Web Shop Sign-in (API-based)
+
+- Daily attendance reward (free item every day)
+- Weekly attendance reward
+- Event attendance (7-day login event)
+- All via direct API calls — no browser automation needed
+
+### Gift Code Redemption (API-based)
 
 - Auto-scrape latest codes from [BD2Pulse](https://thebd2pulse.com)
 - One-click redeem all codes via official API
 - Reports: new success / already redeemed / expired
-
-### Daily Web Shop Sign-in (browser-based)
-
-- Auto sign-in to the official web shop
-- Google OAuth login support
-- Calendar check-in for daily rewards
 
 ## Install
 
@@ -35,40 +36,52 @@ git clone https://github.com/XiaoYiWeio/brown-dust-2.git ~/.openclaw/workspace/s
 
 ## Setup
 
-### Gift Code (one-time)
+### Sign-in (one-time token setup)
 
-Save your in-game nickname:
+1. Log in to [BD2 Web Shop](https://webshop.browndust2.global/CT/) with Google
+2. Press F12 → Console → paste:
+   ```js
+   JSON.parse(localStorage.getItem("session-storage")).state.session.accessToken
+   ```
+3. Save the token:
+   ```bash
+   python3 scripts/signin.py --save-token "YOUR_TOKEN"
+   ```
+
+### Gift Code (one-time nickname setup)
 
 ```bash
 python3 scripts/redeem.py --save-nickname "YourNickname"
 ```
 
-### Daily Sign-in (one-time)
-
-Log in to Google in the OpenClaw browser.
-
 ## Usage
 
 ### In OpenClaw
 
+- "BD2签到" — daily/weekly/event sign-in
 - "BD2兑换码" — auto-redeem all latest codes
-- "BD2签到" — daily web shop sign-in
-- "BD2全签" — both
+- "BD2全签" — sign-in + redeem codes
 
 ### CLI
 
 ```bash
-# Auto-fetch + redeem all codes
+# Sign-in (daily + weekly + event)
+python3 scripts/signin.py
+
+# Check event info
+python3 scripts/signin.py --event-info
+
+# Daily only
+python3 scripts/signin.py --daily-only
+
+# Redeem all codes
 python3 scripts/redeem.py
 
-# List available codes without redeeming
+# List codes without redeeming
 python3 scripts/redeem.py --list
 
-# Manually specify codes
-python3 scripts/redeem.py --code BD21000BOOST,BD2RADIOMAGICAL
-
-# JSON output
-python3 scripts/redeem.py --json
+# JSON output (both scripts support --json)
+python3 scripts/signin.py --json
 ```
 
 ## Architecture
@@ -79,15 +92,21 @@ brown-dust-2/
 ├── persona.md        # Agent interaction guide
 ├── README.md
 └── scripts/
-    └── redeem.py     # Gift code scraper + redeemer (API-based)
+    ├── signin.py     # Web shop sign-in (daily/weekly/event)
+    └── redeem.py     # Gift code scraper + redeemer
 ```
 
-## Design
+## How It Works
 
-- **Zero dependencies** — pure Python 3 standard library
-- **API-based redemption** — no browser needed for gift codes
-- **Auto-scrape** — always gets the latest codes from BD2Pulse
-- **Idempotent** — safe to run multiple times (already-redeemed codes are skipped)
+This skill reverse-engineered the official BD2 Web Shop API:
+
+| Function | API | Auth |
+|----------|-----|------|
+| Daily attend | `POST /api/user/attend {type:0}` | Bearer token |
+| Weekly attend | `POST /api/user/attend {type:1}` | Bearer token |
+| Event attend | `POST /api/event/attend-reward` | Bearer token |
+| Event info | `GET /api/event/event-info` | None |
+| Gift code redeem | `POST coupon API` | None (nickname only) |
 
 ## License
 
