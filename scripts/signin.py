@@ -79,28 +79,34 @@ def get_event_info() -> Dict:
         return {"error": str(e)}
 
 
+def _parse_attend(resp: Dict, task_name: str) -> Dict:
+    data = resp.get("data", resp)
+    if isinstance(data, dict):
+        success = data.get("success", False)
+        error_type = data.get("errorType", 0)
+        already_done = error_type == 3 or "Already attendance" in data.get("errorMsg", "")
+    else:
+        success = False
+        already_done = False
+
+    return {
+        "task": task_name,
+        "success": success,
+        "already_done": already_done,
+        "raw": resp,
+    }
+
+
 def do_daily_attend(token: str) -> Dict:
     """每日签到"""
     resp = _api("POST", "/api/user/attend", token, {"type": _ATTEND_DAILY})
-    data = resp.get("data", resp)
-    success = data.get("success", False) if isinstance(data, dict) else False
-    return {
-        "task": "daily_attend",
-        "success": success,
-        "raw": resp,
-    }
+    return _parse_attend(resp, "daily_attend")
 
 
 def do_weekly_attend(token: str) -> Dict:
     """每周签到"""
     resp = _api("POST", "/api/user/attend", token, {"type": _ATTEND_WEEKLY})
-    data = resp.get("data", resp)
-    success = data.get("success", False) if isinstance(data, dict) else False
-    return {
-        "task": "weekly_attend",
-        "success": success,
-        "raw": resp,
-    }
+    return _parse_attend(resp, "weekly_attend")
 
 
 def get_event_user_info(token: str) -> Dict:
@@ -205,54 +211,81 @@ def format_output(data: Dict) -> str:
         lines.append(f"❌ {data['error']}")
         return "\n".join(lines)
 
+    new_success = 0
+    all_already = True
+
     for r in data.get("results", []):
         task = r.get("task", "")
         success = r.get("success", False)
+        already = r.get("already_done", False)
 
         if task == "daily_attend":
             if success:
                 lines.append("  ✅ 每日签到 — 成功！")
+                new_success += 1
+                all_already = False
+            elif already:
+                lines.append("  ⏭️  每日签到 — 今天已经签到过了")
             else:
                 raw = r.get("raw", {})
-                msg = ""
-                if isinstance(raw, dict):
-                    msg = raw.get("message", "") or str(raw.get("data", {}).get("errorMsg", ""))
-                lines.append(f"  ⚠️  每日签到 — {msg or '已签到或失败'}")
+                msg = _extract_error(raw)
+                lines.append(f"  ❌ 每日签到 — {msg or '失败'}")
+                all_already = False
 
         elif task == "weekly_attend":
             if success:
                 lines.append("  ✅ 每周签到 — 成功！")
+                new_success += 1
+                all_already = False
+            elif already:
+                lines.append("  ⏭️  每周签到 — 本周已经签到过了")
             else:
                 raw = r.get("raw", {})
-                msg = ""
-                if isinstance(raw, dict):
-                    msg = raw.get("message", "") or str(raw.get("data", {}).get("errorMsg", ""))
-                lines.append(f"  ⚠️  每周签到 — {msg or '已签到或失败'}")
+                msg = _extract_error(raw)
+                lines.append(f"  ❌ 每周签到 — {msg or '失败'}")
+                all_already = False
 
         elif task == "event_info":
             days = r.get("attended_days", 0)
             total = r.get("total_days", 0)
-            start = r.get("start", "")
-            end = r.get("end", "")
-            lines.append(f"  📅 活动出席 — {start} ~ {end}")
-            lines.append(f"     已签 {days}/{total} 天")
+            start = r.get("start", "").split(" ")[0]
+            end = r.get("end", "").split(" ")[0]
+            lines.append(f"  📅 活动出席 — {start} ~ {end}（{days}/{total} 天）")
 
         elif task == "event_attend":
             if "message" in r:
                 lines.append(f"  ⏭️  活动出席 — {r['message']}")
             elif success:
                 lines.append("  ✅ 活动出席 — 今日签到成功！")
+                new_success += 1
+                all_already = False
             else:
                 raw = r.get("raw", {})
-                msg = ""
-                if isinstance(raw, dict):
-                    msg = raw.get("message", "") or str(raw.get("data", {}).get("errorMsg", ""))
+                msg = _extract_error(raw)
                 lines.append(f"  ❌ 活动出席 — {msg or '失败'}")
+                all_already = False
 
     lines.append("")
-    lines.append("📬 奖励已发送到游戏内邮箱，重启游戏后领取！")
+    if all_already:
+        lines.append("📋 今日已全部签到完成，明天再来吧！")
+    elif new_success > 0:
+        lines.append("📬 奖励已发送到游戏内邮箱，重启游戏后领取！")
 
     return "\n".join(lines)
+
+
+def _extract_error(raw: Dict) -> str:
+    if not isinstance(raw, dict):
+        return str(raw)
+    msg = raw.get("message", "")
+    data = raw.get("data", {})
+    if isinstance(data, dict):
+        err = data.get("errorMsg", "")
+        if err and "Already" not in err:
+            return err
+    if msg and msg != "success":
+        return msg
+    return ""
 
 
 def main():
