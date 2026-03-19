@@ -34,265 +34,69 @@
 python3 {baseDir}/scripts/signin.py --json
 ```
 
-### Step 2: Token 获取流程（仅首次或过期时）
+### Step 2: 自动登录获取 Token
 
-**⚠️ 这是全自动流程，你必须自己完成每一步，不要让用户操作浏览器！**
+⚠️ **你必须按下面的顺序逐条执行浏览器命令。不要跳过任何一步。不要让用户操作浏览器。**
 
-#### 2a. 打开 Web Shop
+**执行命令 1** — 打开页面：
+Browser tool → `{"action":"open","targetUrl":"https://webshop.browndust2.global/CT/","target":"host","profile":"openclaw"}`
+→ 记住返回的 targetId
 
-```json
-{
-  "action": "open",
-  "targetUrl": "https://webshop.browndust2.global/CT/",
-  "target": "host",
-  "profile": "openclaw"
-}
-```
+**执行命令 2** — 等 8 秒加载：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"evaluate","fn":"() => new Promise(r => setTimeout(r, 8000)).then(() => 'loaded')"}}`
 
-记住返回的 `targetId`（后续所有操作都用它）。
+**执行命令 3** — 检查是否已有 token：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"evaluate","fn":"() => { try { return 'TOKEN:' + JSON.parse(localStorage.getItem('session-storage')).state.session.accessToken } catch(e) { return 'NO_TOKEN' } }"}}`
+→ 如果得到 `TOKEN:xxx`，跳到「保存 Token」
+→ 如果得到 `NO_TOKEN`，继续
 
-#### 2b. 等待页面完全加载（8 秒）
+**执行命令 4** — 截图找登入按钮：
+Browser tool → `{"action":"snapshot","targetId":"{targetId}","target":"host","maxChars":30000}`
+→ 在结果中找 "登入" / "Sign In" 按钮的 ref
 
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => new Promise(r => setTimeout(r, 8000)).then(() => document.title)"
-  }
-}
-```
+**执行命令 5** — 你点击登入按钮：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"click","ref":"{找到的登入按钮ref}"}}`
 
-#### 2c. 先尝试直接提取 Token（可能已登录）
+**执行命令 6** — 等 5 秒出弹窗：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"evaluate","fn":"() => new Promise(r => setTimeout(r, 5000)).then(() => 'popup-ready')"}}`
 
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => { try { const s = JSON.parse(localStorage.getItem('session-storage')); const t = s.state.session.accessToken; return t ? 'TOKEN:' + t : 'NO_TOKEN'; } catch(e) { return 'NO_TOKEN'; } }"
-  }
-}
-```
+**执行命令 7** — 截图找 Google 按钮：
+Browser tool → `{"action":"snapshot","targetId":"{targetId}","target":"host","maxChars":30000}`
+→ 在结果中找 "Google" / "使用Google登入" 按钮的 ref
 
-- 如果返回 `TOKEN:xxxx` → 跳到 Step 2j 保存 token，**跳过登录流程**
-- 如果返回 `NO_TOKEN` → 继续下面的登录流程
+**执行命令 8** — 你点击 Google 登录按钮：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"click","ref":"{Google按钮ref}"}}`
 
-#### 2d. Snapshot 找登录按钮（你必须自己点击，不要让用户操作！）
+**执行命令 9** — 等 5 秒让 Google 窗口打开：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"evaluate","fn":"() => new Promise(r => setTimeout(r, 5000)).then(() => 'google-opening')"}}`
 
-```json
-{
-  "action": "snapshot",
-  "targetId": "{targetId}",
-  "target": "host",
-  "maxChars": 30000
-}
-```
+**执行命令 10** — 列出所有标签页找 Google 窗口：
+Browser tool → `{"action":"tabs","profile":"openclaw"}`
+→ 找 URL 含 `accounts.google.com` 的标签页，记其 targetId 为 googleId
 
-在 snapshot 中找到 "登入" / "Sign In" / "Login" 按钮的 ref。
+**执行命令 11** — 截图 Google 账号选择页：
+Browser tool → `{"action":"snapshot","targetId":"{googleId}","target":"host","maxChars":30000}`
+→ 找第一个 Google 账号的 ref
 
-#### 2e. 你来点击登录按钮（不要让用户点！）
+**执行命令 12** — 你点击第一个 Google 账号：
+Browser tool → `{"action":"act","targetId":"{googleId}","request":{"kind":"click","ref":"{第一个账号ref}"}}`
 
-用 ref 点击：
+**执行命令 13** — 等 10 秒完成登录回跳：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"evaluate","fn":"() => new Promise(r => setTimeout(r, 10000)).then(() => 'login-done')"}}`
+（注意：这里用的是原始 webshop 的 targetId）
 
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": { "kind": "click", "ref": "{登入按钮的ref}" }
-}
-```
+**执行命令 14** — 提取 Token：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"evaluate","fn":"() => { try { return 'TOKEN:' + JSON.parse(localStorage.getItem('session-storage')).state.session.accessToken } catch(e) { return 'NO_TOKEN' } }"}}`
 
-如果 snapshot 中找不到 ref，用 JS 强制点击：
+**保存 Token** — 拿到 TOKEN:xxx 后执行：
+`python3 {baseDir}/scripts/signin.py --save-token "{token部分}"`
 
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => { const btn = document.querySelector('.login-btn, [class*=login], [class*=sign-in], button'); if (btn) { btn.click(); return 'CLICKED'; } return 'NOT_FOUND'; }"
-  }
-}
-```
+**如果命令 14 返回 NO_TOKEN**，刷新再试：
+Browser tool → `{"action":"act","targetId":"{targetId}","request":{"kind":"evaluate","fn":"() => { location.reload(); return new Promise(r => setTimeout(() => { try { r('TOKEN:' + JSON.parse(localStorage.getItem('session-storage')).state.session.accessToken) } catch(e) { r('NO_TOKEN') } }, 8000)) }"}}`
 
-#### 2f. 等待登录弹窗（5 秒）
-
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => new Promise(r => setTimeout(r, 5000)).then(() => 'ready')"
-  }
-}
-```
-
-#### 2g. Snapshot 找 Google 登录按钮 → 你来点击！
-
-```json
-{
-  "action": "snapshot",
-  "targetId": "{targetId}",
-  "target": "host",
-  "maxChars": 30000
-}
-```
-
-找到 "使用Google登入" / "Sign in with Google" / "Google" 按钮的 ref，**你来点击**：
-
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": { "kind": "click", "ref": "{Google登录按钮的ref}" }
-}
-```
-
-如果找不到 ref，用 JS 强制点击：
-
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => { const btns = [...document.querySelectorAll('button, a, [role=button]')]; const g = btns.find(b => /google/i.test(b.textContent) || /google/i.test(b.className)); if (g) { g.click(); return 'CLICKED_GOOGLE'; } return 'NOT_FOUND'; }"
-  }
-}
-```
-
-#### 2h. 处理 Google 新窗口（关键步骤！）
-
-Google 登录会**打开一个新窗口**。等待 5 秒后用 `tabs` 找到它：
-
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => new Promise(r => setTimeout(r, 5000)).then(() => 'waited')"
-  }
-}
-```
-
-```json
-{
-  "action": "tabs",
-  "profile": "openclaw"
-}
-```
-
-在 tabs 列表中找到 URL 包含 `accounts.google.com` 的标签页，记下它的 `targetId`（称为 `googleTargetId`）。
-
-#### 2i. 在 Google 窗口中选择账号（你来点击，不要让用户操作！）
-
-对 Google 标签页做 snapshot：
-
-```json
-{
-  "action": "snapshot",
-  "targetId": "{googleTargetId}",
-  "target": "host",
-  "maxChars": 30000
-}
-```
-
-snapshot 中会显示已缓存的 Google 账号列表。找到用户的账号（通常是第一个），点击它：
-
-```json
-{
-  "action": "act",
-  "targetId": "{googleTargetId}",
-  "request": { "kind": "click", "ref": "{第一个Google账号的ref}" }
-}
-```
-
-如果找不到 ref，用 JS 点击第一个账号：
-
-```json
-{
-  "action": "act",
-  "targetId": "{googleTargetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => { const items = document.querySelectorAll('[data-email], [data-identifier], .JDAKTe, li[role=presentation] div[role=link]'); if (items.length > 0) { items[0].click(); return 'CLICKED_ACCOUNT: ' + (items[0].dataset.email || items[0].textContent.substring(0, 50)); } const divs = [...document.querySelectorAll('div[role=link], div[tabindex=\"0\"]')]; if (divs.length > 0) { divs[0].click(); return 'CLICKED_FIRST'; } return 'NO_ACCOUNTS_FOUND'; }"
-  }
-}
-```
-
-#### 2i-2. 等待登录完成（10 秒）
-
-Google 选择账号后会自动关闭窗口并跳回 Web Shop。
-
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => new Promise(r => setTimeout(r, 10000)).then(() => 'waited')"
-  }
-}
-```
-
-**注意**：这里用的是原来的 webshop `targetId`（不是 googleTargetId）。
-
-#### 2i-3. 验证登录成功
-
-等待后再次尝试提取 token（可能需要页面刷新）：
-
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => { try { const s = JSON.parse(localStorage.getItem('session-storage')); const t = s.state.session.accessToken; return t ? 'TOKEN:' + t : 'NO_TOKEN'; } catch(e) { return 'NO_TOKEN'; } }"
-  }
-}
-```
-
-如果仍然 `NO_TOKEN`，刷新页面后再试：
-
-```json
-{
-  "action": "act",
-  "targetId": "{targetId}",
-  "request": {
-    "kind": "evaluate",
-    "fn": "() => { location.reload(); return new Promise(r => setTimeout(() => { try { const s = JSON.parse(localStorage.getItem('session-storage')); const t = s.state.session.accessToken; r(t ? 'TOKEN:' + t : 'STILL_NO_TOKEN'); } catch(e) { r('STILL_NO_TOKEN'); } }, 8000)); }"
-  }
-}
-```
-
-如果最终还是 `STILL_NO_TOKEN`，告诉用户手动操作（备用方案）。
-
-#### 2j. 保存 Token
-
-从返回值中提取 `TOKEN:` 后面的部分，保存：
-
-```bash
-python3 {baseDir}/scripts/signin.py --save-token "{token}"
-```
-
-**备用方案（仅当以上所有自动步骤都尝试过且全部失败后才使用！）：**
-
-只有当你已经尝试了：
-1. ✅ 自己点击了登入按钮
-2. ✅ 自己点击了 Google 登录
-3. ✅ 自己切换到 Google 窗口并尝试点击账号
-4. ❌ 以上步骤全部失败
-
-才可以告诉用户：
-
-> 自动登录未成功（我已经尝试了自动点击但失败了）。请手动操作：
-> 1. 在打开的浏览器中登录 Google 账号
-> 2. 登录后告诉我一声，我来提取 Token
+**最终兜底（仅当以上 14 步全部执行过仍失败时）：**
+告诉用户："自动登录失败了，请在浏览器中手动登录 Google，完成后告诉我。"
+用户确认后重新执行命令 14 提取 Token。
 
 ### Step 3: 执行签到
 
