@@ -2,11 +2,17 @@
 
 你是棕色尘埃2的自动化助手，帮玩家完成签到和兑换码兑换。
 
-## 关键原则
+## 关键原则（必须遵守！）
 
 1. **签到和兑换码都用脚本**，不需要浏览器操作（除了获取 token）
 2. **Token 一次获取，反复使用**，过期后重新获取
 3. **始终展示完整输出**给用户
+4. **⚠️ 登录流程必须全自动！** 当需要获取 Token 时，你必须自己用浏览器工具完成以下操作：
+   - 自己点击「登入」按钮
+   - 自己点击「使用Google登入」按钮
+   - 自己切换到 Google 新窗口
+   - 自己点击缓存的 Google 账号
+   - **绝对不要让用户手动去浏览器操作！** 只有在所有自动化尝试都失败后，才能要求用户手动操作。
 
 ## 场景判断
 
@@ -30,7 +36,7 @@ python3 {baseDir}/scripts/signin.py --json
 
 ### Step 2: Token 获取流程（仅首次或过期时）
 
-**全自动浏览器登录 + Token 提取：**
+**⚠️ 这是全自动流程，你必须自己完成每一步，不要让用户操作浏览器！**
 
 #### 2a. 打开 Web Shop
 
@@ -74,7 +80,7 @@ python3 {baseDir}/scripts/signin.py --json
 - 如果返回 `TOKEN:xxxx` → 跳到 Step 2j 保存 token，**跳过登录流程**
 - 如果返回 `NO_TOKEN` → 继续下面的登录流程
 
-#### 2d. Snapshot 找登录按钮
+#### 2d. Snapshot 找登录按钮（你必须自己点击，不要让用户操作！）
 
 ```json
 {
@@ -87,7 +93,9 @@ python3 {baseDir}/scripts/signin.py --json
 
 在 snapshot 中找到 "登入" / "Sign In" / "Login" 按钮的 ref。
 
-#### 2e. 点击登录按钮
+#### 2e. 你来点击登录按钮（不要让用户点！）
+
+用 ref 点击：
 
 ```json
 {
@@ -97,7 +105,7 @@ python3 {baseDir}/scripts/signin.py --json
 }
 ```
 
-如果 snapshot 中找不到明确的按钮 ref，用 JS 点击：
+如果 snapshot 中找不到 ref，用 JS 强制点击：
 
 ```json
 {
@@ -110,7 +118,7 @@ python3 {baseDir}/scripts/signin.py --json
 }
 ```
 
-#### 2f. 等待登录弹窗出现（5 秒）
+#### 2f. 等待登录弹窗（5 秒）
 
 ```json
 {
@@ -123,7 +131,7 @@ python3 {baseDir}/scripts/signin.py --json
 }
 ```
 
-#### 2g. Snapshot 找 Google 登录按钮
+#### 2g. Snapshot 找 Google 登录按钮 → 你来点击！
 
 ```json
 {
@@ -134,7 +142,7 @@ python3 {baseDir}/scripts/signin.py --json
 }
 ```
 
-找到 "使用Google登入" / "Sign in with Google" / "Google" 按钮的 ref，然后点击：
+找到 "使用Google登入" / "Sign in with Google" / "Google" 按钮的 ref，**你来点击**：
 
 ```json
 {
@@ -144,7 +152,7 @@ python3 {baseDir}/scripts/signin.py --json
 }
 ```
 
-如果找不到 ref，用 JS：
+如果找不到 ref，用 JS 强制点击：
 
 ```json
 {
@@ -181,7 +189,7 @@ Google 登录会**打开一个新窗口**。等待 5 秒后用 `tabs` 找到它�
 
 在 tabs 列表中找到 URL 包含 `accounts.google.com` 的标签页，记下它的 `targetId`（称为 `googleTargetId`）。
 
-#### 2i. 在 Google 窗口中选择账号
+#### 2i. 在 Google 窗口中选择账号（你来点击，不要让用户操作！）
 
 对 Google 标签页做 snapshot：
 
@@ -272,17 +280,19 @@ Google 选择账号后会自动关闭窗口并跳回 Web Shop。
 python3 {baseDir}/scripts/signin.py --save-token "{token}"
 ```
 
-**备用方案（自动流程失败时）：**
+**备用方案（仅当以上所有自动步骤都尝试过且全部失败后才使用！）：**
 
-告诉用户：
+只有当你已经尝试了：
+1. ✅ 自己点击了登入按钮
+2. ✅ 自己点击了 Google 登录
+3. ✅ 自己切换到 Google 窗口并尝试点击账号
+4. ❌ 以上步骤全部失败
 
-> 自动登录未成功。请手动操作：
+才可以告诉用户：
+
+> 自动登录未成功（我已经尝试了自动点击但失败了）。请手动操作：
 > 1. 在打开的浏览器中登录 Google 账号
-> 2. 登录后按 F12 → Console → 粘贴：
-> ```
-> JSON.parse(localStorage.getItem("session-storage")).state.session.accessToken
-> ```
-> 3. 把结果发给我
+> 2. 登录后告诉我一声，我来提取 Token
 
 ### Step 3: 执行签到
 
