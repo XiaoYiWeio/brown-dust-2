@@ -84,6 +84,8 @@ def redeem_code(nickname: str, code: str) -> Dict:
         headers={
             "Content-Type": "application/json",
             "User-Agent": _UA,
+            "Origin": "https://redeem.bd2.pmang.cloud",
+            "Referer": "https://redeem.bd2.pmang.cloud/bd2/index.html",
         },
     )
 
